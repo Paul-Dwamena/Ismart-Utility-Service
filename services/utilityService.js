@@ -594,11 +594,11 @@ class UtilityService {
                 }
             }
 
-            const idemKey = idempotencyKey || this.generateIdempotencyKey('ELECTRICITY');
+            const idemKey = idempotencyKey || this.generateIdempotencyKey('electricity');
             const reference = this.generateReference('electricity');
             const fixedAmount = Number(Number(amount).toFixed(2));
             const transactionType = 'DEBIT';
-            const serviceType = 'Electricity';
+            const serviceType = 'electricity';
 
             // Get customer wallet
             const wallet = await prisma.wallet.findFirst({
@@ -667,7 +667,7 @@ class UtilityService {
                         meter_number: meterNumber,
                         meter_type: meterType,
                         phone_number: phoneNumber,
-                        utility_type: 'Electricity',
+                        utility_type: 'electricity',
                         provider_id: provider.id,
                         provider_code: provider.code || null
                     }),
@@ -698,9 +698,9 @@ class UtilityService {
                         payment_details: JSON.stringify({
                             meter_number: meterNumber,
                             meter_type: meterType,
-                            utility_type: 'Electricity'
+                            utility_type: 'electricity'
                         }),
-                        disburse_type: 'Electricity',
+                        disburse_type: 'electricity',
                         customer_id: customerId
                     }
                 })
