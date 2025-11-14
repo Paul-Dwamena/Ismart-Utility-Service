@@ -14,8 +14,11 @@ model RefreshToken {
   createdAt     DateTime   @default(now())
   userId        String?    @db.Uuid
   contactUserId String?    @db.Uuid
-  customers     customers? @relation(fields: [userId], references: [id], onDelete: Restrict)
   users         users?     @relation(fields: [contactUserId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_contactuser_user")
+  customers     customers? @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "fk_refreshtoken_customer")
+
+  @@index([contactUserId], map: "idx_refreshtoken_contact_user_id")
+  @@index([userId], map: "idx_refreshtoken_user_id")
 }
 
 model account_security {
@@ -27,7 +30,7 @@ model account_security {
   created_at     DateTime?  @default(now()) @db.Timestamp(6)
   updated_at     DateTime?  @default(now()) @db.Timestamp(6)
   user_id        String?    @unique(map: "unique_user_security_id") @db.Uuid
-  customers      customers? @relation(fields: [customer_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  customers      customers? @relation(fields: [customer_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_accountsecurity_customer")
 }
 
 model admins {
@@ -179,7 +182,7 @@ model businesses {
   business_bank_accounts   business_bank_accounts[]
   business_owners          business_owners[]
   business_risk_documents  business_risk_documents[]
-  users                    users?                    @relation(fields: [owner_id], references: [id], onUpdate: NoAction)
+  users                    users?                    @relation(fields: [owner_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_business_user")
   documents                documents[]
   teams                    teams[]
   transactions             transactions[]
@@ -208,6 +211,7 @@ model custom_fees {
   amount     Decimal?  @db.Decimal(12, 2)
   fee_type   String    @db.VarChar(50)
   created_at DateTime? @default(now()) @db.Timestamptz(6)
+  channel    String?   @db.VarChar
 }
 
 model customer_profiles {
@@ -219,7 +223,7 @@ model customer_profiles {
   digital_address String?   @db.VarChar(255)
   created_at      DateTime? @default(now()) @db.Timestamp(6)
   updated_at      DateTime? @default(now()) @db.Timestamp(6)
-  customers       customers @relation(fields: [customer_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  customers       customers @relation(fields: [customer_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_customerprofile_customer")
 }
 
 model customers {
@@ -230,18 +234,18 @@ model customers {
   phone                 String
   email                 String?
   password_hash         String?
-  phone_hmac            String?            @unique(map: "unique_phone_hmac")
+  phone_hmac            String?            @unique
   is_email_verified     Boolean?           @default(false)
   created_at            DateTime?          @default(now()) @db.Timestamp(6)
   updated_at            DateTime?          @default(now()) @db.Timestamp(6)
-  customer_code         String?            @db.VarChar
-  email_hmac            String?            @unique(map: "unique_email_hmac")
+  customer_code         String?            @db.VarChar(255)
+  email_hmac            String?            @unique
   is_phone_verified     Boolean?           @default(false)
-  status                String?            @default("active") @db.VarChar
+  status                String?            @default("active") @db.VarChar(255)
   failed_login_attempts Int?               @default(0)
-  last_failed_login     String?            @db.VarChar
+  last_failed_login     String?            @db.VarChar(255)
   current_token         String?
-  dob                   String?            @db.VarChar
+  dob                   String?            @db.VarChar(255)
   RefreshToken          RefreshToken[]
   account_security      account_security?
   customer_profiles     customer_profiles?
@@ -281,7 +285,7 @@ model disbursements {
   amount              Decimal               @db.Decimal(19, 2)
   currency            String                @db.VarChar(10)
   status              String                @db.VarChar(50)
-  provider_id         String                @db.Uuid
+  provider_id         String?               @db.Uuid
   provider_ref        String?               @db.VarChar(255)
   error_code          String?               @db.VarChar(100)
   error_message       String?
@@ -291,16 +295,22 @@ model disbursements {
   payment_details     String?
   disburse_type       String?               @db.VarChar
   customer_id         String?               @db.Uuid
+  user_type           String?               @default("customer") @db.VarChar
+  employee_id         String?               @db.Uuid
+  created_by          String?               @db.Uuid
+  business_id         String?               @db.Uuid
   bulk_items          bulk_items[]
   disbursement_issues disbursement_issues[]
-  payment_providers   payment_providers     @relation(fields: [provider_id], references: [id], onUpdate: NoAction, map: "fk_disbursement_provider")
-  customers           customers?            @relation(fields: [customer_id], references: [id], onUpdate: NoAction, map: "fk_disbursements_customer")
+  employee            employee?             @relation(fields: [employee_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  payment_providers   payment_providers?    @relation(fields: [provider_id], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "fk_disbursement_provider")
+  customers           customers?            @relation(fields: [customer_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_disbursements_customer")
   reconciliation_jobs reconciliation_jobs[]
   refunds             refunds[]
 
   @@index([provider_id], map: "idx_disbursement_provider")
   @@index([status], map: "idx_disbursement_status")
   @@index([transaction_id], map: "idx_disbursement_transaction_id")
+  @@index([customer_id], map: "idx_disbursement_customer_id")
 }
 
 model documents {
@@ -318,7 +328,7 @@ model documents {
   updated_at      DateTime?        @default(now()) @db.Timestamptz(6)
   businesses      businesses?      @relation(fields: [business_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   business_owners business_owners? @relation(fields: [owner_id], references: [id], onUpdate: NoAction)
-  users           users?           @relation(fields: [uploaded_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users           users?           @relation(fields: [uploaded_by], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_documents_user")
 
   @@index([business_id], map: "idx_documents_business_id")
 }
@@ -340,23 +350,27 @@ model employee {
   status           String?            @default("active") @db.VarChar(50)
   phone            String?            @db.VarChar(20)
   created_at       DateTime?          @default(now()) @db.Timestamp(6)
+  disbursements    disbursements[]
   employee_payment employee_payment[]
 }
 
 model employee_payment {
-  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  employee_id    String    @db.Uuid
-  amount         Decimal   @db.Decimal(15, 2)
-  payment_method String?   @db.VarChar(50)
-  reference      String?   @unique @db.VarChar(100)
-  status         String?   @default("pending") @db.VarChar(50)
-  narration      String?
-  created_at     DateTime? @default(now()) @db.Timestamp(6)
-  processed_at   DateTime? @db.Timestamp(6)
-  transaction_id String?   @db.Uuid
-  created_by     String?   @db.Uuid
-  provider_id    String?   @db.Uuid
-  employee       employee  @relation(fields: [employee_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id                     String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employee_id            String                  @db.Uuid
+  amount                 Decimal                 @db.Decimal(15, 2)
+  payment_method         String?                 @db.VarChar(50)
+  reference              String?                 @unique @db.VarChar(100)
+  status                 String?                 @default("pending") @db.VarChar(50)
+  narration              String?
+  created_at             DateTime?               @default(now()) @db.Timestamp(6)
+  processed_at           DateTime?               @db.Timestamp(6)
+  created_by             String?                 @db.Uuid
+  provider_id            String?                 @db.Uuid
+  payment_details        Json?                   @db.Json
+  batch_id               String?                 @db.Uuid
+  currency               String?                 @db.VarChar
+  employee               employee                @relation(fields: [employee_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  employee_payment_batch employee_payment_batch? @relation(fields: [batch_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_employee_payment_batch")
 }
 
 model failed_email {
@@ -368,8 +382,10 @@ model failed_email {
   created_at  DateTime?  @default(now()) @db.Timestamp(6)
   updated_at  DateTime?  @default(now()) @db.Timestamp(6)
   user_id     String?    @db.Uuid
-  customers   customers? @relation(fields: [customer_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   users       users?     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_failedemail_user")
+  customers   customers? @relation(fields: [customer_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_failedemail_customer")
+
+  @@index([customer_id], map: "idx_failedemail_customer_id")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -383,6 +399,8 @@ model fees {
   description String?   @db.VarChar
   service_id  String?   @db.Uuid
   status      String?   @db.VarChar
+  channel     String?   @db.VarChar
+  services    services? @relation(fields: [service_id], references: [id], map: "fk_fees_service")
 }
 
 model kyc_documents {
@@ -399,9 +417,11 @@ model kyc_documents {
   application_id     String?    @db.VarChar
   review_notes       String?
   reviewed_by        String?    @db.Uuid
-  admins             admins?    @relation(fields: [reviewed_by], references: [id], onUpdate: NoAction, map: "fk_kyc_documents_reviewed_by_admin")
   users              users?     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_kyc_documents_user")
-  customers          customers? @relation(fields: [customer_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  admins             admins?    @relation(fields: [reviewed_by], references: [id], onUpdate: NoAction, map: "fk_kyc_documents_reviewed_by_admin")
+  customers          customers? @relation(fields: [customer_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_kycdocument_customer")
+
+  @@index([customer_id], map: "idx_kycdocuments_customer_id")
 }
 
 model logs {
@@ -458,7 +478,9 @@ model payment_methods {
   is_primary     Boolean?  @default(false)
   created_at     DateTime? @default(now()) @db.Timestamp(6)
   updated_at     DateTime? @default(now()) @db.Timestamp(6)
-  customers      customers @relation(fields: [customer_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  customers      customers @relation(fields: [customer_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_paymentmethod_customer")
+
+  @@index([customer_id], map: "idx_paymentmethod_customer_id")
 }
 
 model payment_providers {
@@ -488,7 +510,9 @@ model preferences {
   created_at              DateTime?  @default(now()) @db.Timestamp(6)
   updated_at              DateTime?  @default(now()) @db.Timestamp(6)
   user_id                 String?    @db.Uuid
-  customers               customers? @relation(fields: [customer_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  customers               customers? @relation(fields: [customer_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_preference_customer")
+
+  @@index([customer_id], map: "idx_preferences_customer_id")
 }
 
 model provider_limit {
@@ -589,6 +613,7 @@ model services {
   name        String?   @db.VarChar
   description String?
   created_at  DateTime? @default(now()) @db.Timestamp(6)
+  fees        fees[]
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -605,7 +630,7 @@ model settlement_account {
 model settlement_mode {
   id            String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   mode          String?  @db.VarChar(50)
-  user_id       String?  @db.Uuid
+  user_id       String?  @unique(map: "unique_user_settlement_mode") @db.Uuid
   created_at    DateTime @default(now()) @db.Timestamptz(6)
   updated_at    DateTime @default(now()) @db.Timestamptz(6)
   other_details String?
@@ -613,26 +638,21 @@ model settlement_mode {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model settlements {
-  id                  String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  settlement_mode     String    @db.VarChar(50)
-  total_amount        Decimal   @db.Decimal(18, 2)
-  channel_filter      String    @db.VarChar(50)
-  status              String    @default("PENDING") @db.VarChar(20)
-  created_at          DateTime  @default(now()) @db.Timestamptz(6)
-  completed_at        DateTime? @db.Timestamptz(6)
-  user_id             String?   @db.Uuid
-  user_type           String?   @db.VarChar
-  reference           String?   @db.VarChar
-  action_admin_id     String?   @db.Uuid
-  cancellation_reason String?
-}
-
-model sms_message_table {
-  id             BigInt    @id @default(autoincrement())
-  messagedetails String?   @db.VarChar(255)
-  responsecode   String?   @db.VarChar(255)
-  phone_number   String?   @db.VarChar(255)
-  time           DateTime? @db.Date
+  id                      String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  settlement_mode         String    @db.VarChar(50)
+  total_amount            Decimal   @db.Decimal(18, 2)
+  channel_filter          String    @db.VarChar(50)
+  status                  String    @default("PENDING") @db.VarChar(20)
+  created_at              DateTime  @default(now()) @db.Timestamptz(6)
+  completed_at            DateTime? @db.Timestamptz(6)
+  user_id                 String?   @db.Uuid
+  user_type               String?   @db.VarChar
+  reference               String?   @db.VarChar
+  action_admin_id         String?   @db.Uuid
+  cancellation_reason     String?
+  settlement_request_type String?   @db.VarChar
+  transaction_ids         String[]  @db.Uuid
+  payment_channel         String?   @default("mobile_money") @db.VarChar(50)
 }
 
 model team_members {
@@ -641,7 +661,7 @@ model team_members {
   created_at DateTime? @default(now()) @db.Timestamptz(6)
   user_id    String?   @db.Uuid
   teams      teams     @relation(fields: [team_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_team")
-  users      users?    @relation(fields: [user_id], references: [id], onUpdate: NoAction, map: "fk_team_member_user")
+  users      users?    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_team_member_user")
 
   @@index([team_id], map: "idx_team_members_team_id")
   @@index([user_id], map: "idx_team_members_user_id")
@@ -701,33 +721,37 @@ model tickets {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model transactions {
-  id                 String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  customer_id        String?     @db.Uuid
-  business_id        String?     @db.Uuid
-  transaction_type   String      @db.VarChar(50)
-  reference          String      @db.VarChar(100)
-  idempotency_key    String?     @unique @db.VarChar(100)
-  wallet_address     String      @db.VarChar(255)
-  amount             Decimal     @db.Decimal(18, 2)
-  currency           String      @default("GHS") @db.VarChar(10)
-  channel            String?     @db.VarChar(50)
-  status             String      @default("PENDING") @db.VarChar(20)
-  description        String?
-  balance_before     Decimal?    @db.Decimal(18, 2)
-  balance_after      Decimal?    @db.Decimal(18, 2)
-  initiated_by       String?     @db.Uuid
-  related_service_id String?     @db.Uuid
-  created_at         DateTime    @default(now()) @db.Timestamptz(6)
-  updated_at         DateTime    @default(now()) @db.Timestamptz(6)
-  system_reference   String?     @db.VarChar
-  user_type          String?     @default("CUSTOMER") @db.VarChar
-  settlement_status  String?     @default("PENDING") @db.VarChar(20)
-  service_type       String?     @db.VarChar
-  businesses         businesses? @relation(fields: [business_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_business")
-  customers          customers?  @relation(fields: [customer_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_customer")
+  id                    String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  customer_id           String?     @db.Uuid
+  business_id           String?     @db.Uuid
+  transaction_type      String      @db.VarChar(50)
+  reference             String      @db.VarChar(100)
+  idempotency_key       String?     @unique @db.VarChar(100)
+  wallet_address        String      @db.VarChar(255)
+  amount                Decimal     @db.Decimal(18, 2)
+  currency              String?     @default("GHS") @db.VarChar(10)
+  channel               String?     @db.VarChar(50)
+  status                String?     @default("PENDING") @db.VarChar(20)
+  description           String?
+  balance_before        Decimal?    @db.Decimal(18, 2)
+  balance_after         Decimal?    @db.Decimal(18, 2)
+  initiated_by          String?     @db.Uuid
+  related_service_id    String?     @db.Uuid
+  created_at            DateTime?   @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime?   @default(now()) @db.Timestamptz(6)
+  system_reference      String?     @db.VarChar(255)
+  user_type             String?     @default("CUSTOMER") @db.VarChar(255)
+  settlement_status     String?     @default("PENDING") @db.VarChar(20)
+  service_type          String?     @db.VarChar(255)
+  actual_amount_settled Decimal?    @db.Decimal
+  service_id            String?     @db.Uuid
+  businesses            businesses? @relation(fields: [business_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_business")
+  customers             customers?  @relation(fields: [customer_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_customer")
 
   @@unique([reference, transaction_type], map: "transactions_reference_type_key")
-  @@unique([reference, transaction_type], map: "unique_reference_type")
+  @@index([business_id], map: "idx_transactions_business_id")
+  @@index([customer_id], map: "idx_transactions_customer_id")
+  @@index([status], map: "idx_transactions_status")
 }
 
 model user_activity {
@@ -785,12 +809,105 @@ model users {
 model wallet {
   id             String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   user_id        String    @db.Uuid
-  user_type      String    @db.VarChar(50)
+  user_type      String    @db.VarChar(255)
   wallet_address String    @unique @db.VarChar(255)
-  currency       String?   @default("GHS") @db.VarChar(10)
+  currency       String?   @default("GHS") @db.VarChar(255)
   balance        Decimal?  @default(0.00) @db.Decimal(18, 2)
   created_at     DateTime? @default(now()) @db.Timestamp(6)
   updated_at     DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model utilities {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  amount          Decimal   @db.Decimal(18, 2)
+  user_id         String    @db.Uuid
+  user_type       String    @db.VarChar(50)
+  service_id      String    @db.Uuid
+  request_details Json
+  created_at      DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime? @default(now()) @db.Timestamptz(6)
+  status          String?   @default("PENDING") @db.VarChar(20)
+  reference       String    @unique @db.VarChar(100)
+  callback_url    String?
+  channel         String?   @db.VarChar
+}
+
+model employee_payment_batch {
+  id               String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  status           String?            @default("PENDING") @db.VarChar(50)
+  total_amount     Decimal            @db.Decimal(15, 2)
+  created_by       String?            @db.Uuid
+  created_at       DateTime?          @default(now()) @db.Timestamp(6)
+  batch_no         String?            @db.VarChar
+  employee_payment employee_payment[]
+}
+
+model products {
+  id          String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name        String? @db.VarChar
+  description String?
+  code        String? @db.VarChar
+  status      String? @default("active") @db.VarChar
+  file_key    String?
+  group_id    String? @db.VarChar
+}
+
+model sms_message_table {
+  id             BigInt    @id @default(autoincrement())
+  messagedetails String?   @db.VarChar(255)
+  responsecode   String?   @db.VarChar(255)
+  phone_number   String?   @db.VarChar(255)
+  time           DateTime? @db.Date
+}
+
+model in_app_message_table {
+  id             String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  messagedetails String?   @db.VarChar(255)
+  responsecode   String?   @db.VarChar(255)
+  user_id        String    @db.Uuid
+  is_read        Boolean?  @default(false)
+  time           DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+model mtnpayment_gateway_request {
+  amount          Decimal   @db.Decimal(19, 2)
+  created_at      DateTime? @db.Timestamptz(6)
+  updated_at      DateTime? @db.Timestamptz(6)
+  currency        String    @db.VarChar(10)
+  customer_id     String?   @db.Uuid
+  id              String    @id @db.Uuid
+  provider_id     String    @db.Uuid
+  transaction_id  String?   @db.Uuid
+  channel         String    @db.VarChar(50)
+  status          String    @db.VarChar(50)
+  error_code      String?   @db.VarChar(100)
+  collection_type String?   @db.VarChar(255)
+  error_message   String?
+  narration       String?
+  payment_details String?
+  provider_ref    String?   @db.VarChar(255)
+  reference       String?   @db.VarChar(255)
+}
+
+model telecelpayment_gateway_request {
+  amount          Decimal   @db.Decimal(19, 2)
+  created_at      DateTime? @db.Timestamptz(6)
+  updated_at      DateTime? @db.Timestamptz(6)
+  currency        String    @db.VarChar(10)
+  customer_id     String?   @db.Uuid
+  id              String    @id @db.Uuid
+  provider_id     String    @db.Uuid
+  transaction_id  String?   @db.Uuid
+  channel         String    @db.VarChar(50)
+  status          String    @db.VarChar(50)
+  error_code      String?   @db.VarChar(100)
+  collection_type String?   @db.VarChar(255)
+  error_message   String?
+  narration       String?
+  payment_details String?
+  provider_ref    String?   @db.VarChar(255)
+  reference       String?   @db.VarChar(255)
 }
 
 enum CompanyStatus {

@@ -1,5 +1,5 @@
 const ResponseCodes = {
-  SUCCESS: "00",
+  SUCCESS: "0000",
   CREATED: "01",
   BAD_REQUEST: "02",
   UNAUTHORIZED: "03",
